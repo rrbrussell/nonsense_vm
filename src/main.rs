@@ -36,8 +36,8 @@ fn main() {
 the class file format.");
     let constant_pool_count = parse_u16(&class_file_data[8..10]);
     println!("There are {constant_pool_count} items in the contant_pool.");
-    let mut probable_constant_pool = &class_file_data[10..].iter();
-    match parse_constant_pool_tag(&mut probable_constant_pool.cloned()) {
+    let probable_constant_pool = class_file_data[10..].iter();
+    match parse_constant_pool_tag(&mut probable_constant_pool.copied()) {
         Some(t) => {
             println!("I read something");
         }
