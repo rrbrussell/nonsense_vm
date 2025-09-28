@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::iter::Iterator;
 use std::process::exit;
 use std::vec::Vec;
@@ -35,10 +36,10 @@ fn main() {
     let major_version = parse_u16(&class_file_data[6..8]);
     println!("This class file uses version {major_version}.{minor_version} of \
 the class file format.");
-    let constant_pool_count = parse_u16(&class_file_data[8..10]);
+    let constant_pool_count = parse_u16(&class_file_data[8..10]) - 1;
     println!("There are {constant_pool_count} items in the contant_pool.");
     let mut probable_constant_pool = class_file_data[10..].iter();
-    for _ in 1..constant_pool_count {
+    for _ in 1..=constant_pool_count {
         match parse_constant_pool_tag(&mut probable_constant_pool.by_ref().copied()) {
         Some(t) => {
             match t {
@@ -100,6 +101,69 @@ the class file format.");
         }
     }
     println!("The constant pool has been read.");
+    let mut temp: Vec<u8> = probable_constant_pool.by_ref()
+        .take(2)
+        .copied()
+        .collect();
+    if temp.len() != 2 {
+        eprintln!("Access Flags are missing from the class file.");
+        exit(6);
+    }
+    let access_flags = parse_access_flags(parse_u16(&temp[..]));
+    println!("The following Access Flags were set: {access_flags:?}");
+    temp = probable_constant_pool.by_ref().take(2).copied().collect();
+    if temp.len() != 2 {
+        eprintln!("The 'this_class' item is missing from the class file.");
+        exit(7);
+    }
+    let this_class: u16 = parse_u16(&temp[..]);
+    print!("This file defines the class described in Constant Pool Entry");
+    println!(" {this_class}.");
+    temp = probable_constant_pool.by_ref().take(2).copied().collect();
+    if temp.len() != 2 {
+        eprintln!("The 'super_class' item is missing from the class file.");
+        exit(7);
+    }
+    let super_class: u16 = parse_u16(&temp[..]);
+    print!("This class has the superclass described in Constant Pool Entry");
+    println!(" {super_class}.");
+    temp = probable_constant_pool.by_ref().take(2).copied().collect();
+    if temp.len() != 2 {
+        eprintln!("The 'interfaces_count' item is missing from the class file.");
+        exit(7);
+    }
+    let interfaces_count: u16 = parse_u16(&temp[..]);
+    println!("This class implements {interfaces_count} interfaces.");
+    if interfaces_count != 0 {
+        todo!("Parse the interfaces.");
+    }
+    temp = probable_constant_pool.by_ref().take(2).copied().collect();
+    if temp.len() != 2 {
+        eprintln!("The 'fields_count' item is missing from the class file.");
+        exit(7);
+    }
+    let fields_count: u16 = parse_u16(&temp[..]);
+    println!("This class has {fields_count} fields.");
+    temp = probable_constant_pool.by_ref().take(2).copied().collect();
+    if temp.len() != 2 {
+        eprintln!("The 'methods_count' item is missing from the class file.");
+        exit(7);
+    }
+    let methods_count: u16 = parse_u16(&temp[..]);
+    println!("This class implements {methods_count} methods.");
+    if methods_count != 0 {
+        todo!("Parse the methods.");
+    }
+    temp = probable_constant_pool.by_ref().take(2).copied().collect();
+    if temp.len() != 2 {
+        eprintln!("The 'attributes_count' item is missing from the class \
+file.");
+        exit(7);
+    }
+    let attributes_count: u16 = parse_u16(&temp[..]);
+    println!("There are {attributes_count} attributes in this class.");
+    println!("There are {} bytes of unprocessed input left.",
+        probable_constant_pool.count());
     exit(0);
 }
 
@@ -250,7 +314,9 @@ Option<ConstantPoolItem> {
     }
 }
 
-enum Access_Flags {
+#[repr(u16)]
+#[derive(Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+enum AccessFlags {
     Public = 0x0001,
     Final = 0x0010,
     Super = 0x0020,
@@ -259,4 +325,34 @@ enum Access_Flags {
     Synthetic = 0x1000,
     Annotation = 0x2000,
     Enum = 0x4000,
+}
+
+fn parse_access_flags(input: u16) -> HashSet<AccessFlags> {
+    let mut set_flags: HashSet<AccessFlags> = HashSet::with_capacity(8);
+    if input & AccessFlags::Public as u16 == AccessFlags::Public as u16 {
+        set_flags.insert(AccessFlags::Public);
+    }
+    if input & AccessFlags::Final as u16 == AccessFlags::Final as u16 {
+        set_flags.insert(AccessFlags::Final);
+    }
+    if input & AccessFlags::Super as u16 == AccessFlags::Final as u16 {
+        set_flags.insert(AccessFlags::Super);
+    }
+    if input & AccessFlags::Interface as u16 == AccessFlags::Interface as u16 {
+        set_flags.insert(AccessFlags::Interface);
+    }
+    if input & AccessFlags::Abstract as u16 == AccessFlags::Abstract as u16 {
+        set_flags.insert(AccessFlags::Abstract);
+    }
+    if input & AccessFlags::Synthetic as u16 == AccessFlags::Synthetic as u16 {
+        set_flags.insert(AccessFlags::Synthetic);
+    }
+    if input & AccessFlags::Annotation as u16 == AccessFlags::Annotation as u16
+    {
+        set_flags.insert(AccessFlags::Annotation);
+    }
+    if input & AccessFlags::Enum as u16 == AccessFlags::Enum as u16 {
+        set_flags.insert(AccessFlags::Enum);
+    }
+    return set_flags;
 }
