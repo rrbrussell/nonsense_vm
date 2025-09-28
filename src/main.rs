@@ -56,44 +56,52 @@ the class file format.");
                         }
                     }
                 },
-                ConstantPoolItem::Integer => {
-                    println!("I found an Integer.");
+                ConstantPoolItem::Integer(item) => {
+                    println!("I found the integer {item}.");
                 },
-                ConstantPoolItem::Float => {
-                    println!("I found a float.");
+                ConstantPoolItem::Float(item) => {
+                    println!("I found the float {item}.");
                 },
-                ConstantPoolItem::Long => {
-                    println!("I found a long.");
+                ConstantPoolItem::Long(item) => {
+                    println!("I found the long {item}.");
                 },
-                ConstantPoolItem::Double => {
-                    println!("I found a double.");
+                ConstantPoolItem::Double(item) => {
+                    println!("I found a double {item}.");
                 },
                 ConstantPoolItem::Class(name_index) => {
                     println!("I found a class. Its name is at index {name_index}.");
                 },
-                ConstantPoolItem::String => {
-                    println!("I found a string.");
+                ConstantPoolItem::String(string_index) => {
+                    println!("I found a string. Its contents are at index {string_index}.");
                 },
-                ConstantPoolItem::Fieldref => {
-                    println!("I found a field reference.");
+                ConstantPoolItem::Fieldref(class, name_and_type) => {
+                    println!("I found a field belonging to {class} that is \
+named and typed at {name_and_type}.");
                 },
-                ConstantPoolItem::Methodref => {
-                    println!("I found a method reference.");
+                ConstantPoolItem::Methodref(class, name_and_type) => {
+                    println!("I found a method belonging to {class} that is \
+named and typed at {name_and_type}.");
                 },
-                ConstantPoolItem::InterfaceMethodref => {
-                    println!("I found an interface method reference.");
+                ConstantPoolItem::InterfaceMethodref(class, name_and_type) => {
+                    println!("I found an interface method belonging to {class} \
+that is name and typed at {name_and_type}.");
                 },
-                ConstantPoolItem::NameAndType => {
-                    println!("I found a name and type.");
+                ConstantPoolItem::NameAndType(name, descriptor) => {
+                    println!("I found a member named at {name} and typed at \
+{descriptor}.");
                 },
-                ConstantPoolItem::MethodHandle => {
-                    println!("I found a method handle.");
+                ConstantPoolItem::MethodHandle(kind, reference) => {
+                    println!("I found a method handle of {kind} referencing \
+the item at {reference}.");
                 },
-                ConstantPoolItem::MethodType => {
-                    println!("I found a method type.");
+                ConstantPoolItem::MethodType(description) => {
+                    println!("I found a method descriped at {description}.");
                 },
-                ConstantPoolItem::InvokeDynamic => {
-                    println!("I found a dynamic invocation.");
+                ConstantPoolItem::InvokeDynamic(bootstrap, name_and_type) => {
+                    println!("I found a dynamic invocation boostrap method \
+named and type at {name_and_type},");
+                    println!("and descriped further and index {bootstrap} \
+of the bootstrap table.");
                 },
             }
         }
@@ -144,6 +152,9 @@ the class file format.");
     }
     let fields_count: u16 = parse_u16(&temp[..]);
     println!("This class has {fields_count} fields.");
+    if fields_count != 0 {
+        todo!("Parse the fields.");
+    }
     temp = probable_constant_pool.by_ref().take(2).copied().collect();
     if temp.len() != 2 {
         eprintln!("The 'methods_count' item is missing from the class file.");
@@ -165,6 +176,24 @@ file.");
     println!("There are {} bytes of unprocessed input left.",
         probable_constant_pool.count());
     exit(0);
+}
+
+fn parse_f32(input: &[u8]) -> f32 {
+    f32::from_be_bytes([input[0], input[1], input[2], input[3]])
+}
+
+fn parse_f64(input: &[u8]) -> f64 {
+    f64::from_be_bytes([input[0], input[1], input[2], input[3],
+        input[4], input[5], input[6], input[7]])
+}
+
+fn parse_i32(input: &[u8]) -> i32 {
+    i32::from_be_bytes([input[0], input[1], input[2], input[3]])
+}
+
+fn parse_i64(input: &[u8]) -> i64 {
+    i64::from_be_bytes([input[0], input[1], input[2], input[3],
+        input[4], input[5], input[6], input[7]])
 }
 
 fn parse_u16(input: &[u8]) -> u16 {
@@ -258,19 +287,19 @@ fn parse_javaized_utf8(input: &Vec<u8>) -> Option<String> {
 
 enum ConstantPoolItem{
     Utf8(Vec<u8>),
-    Integer,
-    Float,
-    Long,
-    Double,
+    Integer(i32),
+    Float(f32),
+    Long(i64),
+    Double(f64),
     Class(usize),
-    String,
-    Fieldref,
-    Methodref,
-    InterfaceMethodref,
-    NameAndType,
-    MethodHandle,
-    MethodType,
-    InvokeDynamic
+    String(usize),
+    Fieldref(usize, usize),
+    Methodref(usize, usize),
+    InterfaceMethodref(usize, usize),
+    NameAndType(usize, usize),
+    MethodHandle(u8, usize),
+    MethodType(usize),
+    InvokeDynamic(usize, usize)
 }
 
 fn parse_constant_pool_tag(iter: &mut impl Iterator<Item = u8>) ->
@@ -282,31 +311,92 @@ Option<ConstantPoolItem> {
                 01 => {
                     temp_storage = iter.by_ref().take(2).collect();
                     if temp_storage.len() != 2 { return None; }
-                    let length = parse_u16(&temp_storage[0..2]);
+                    let length = parse_u16(&temp_storage[..]);
                     temp_storage = iter.by_ref().take(length as usize).collect();
                     if temp_storage.len() != length as usize {
                         return None;
                     }
                     Some(ConstantPoolItem::Utf8(temp_storage))
                 },
-                03 => Some(ConstantPoolItem::Integer),
-                04 => Some(ConstantPoolItem::Float),
-                05 => Some(ConstantPoolItem::Long),
-                06 => Some(ConstantPoolItem::Double),
+                03 => {
+                    temp_storage = iter.by_ref().take(4).collect();
+                    if temp_storage.len() != 4 { return None; }
+                    Some(ConstantPoolItem::Integer(parse_i32(&temp_storage[..])))
+                },
+                04 => {
+                    temp_storage = iter.by_ref().take(4).collect();
+                    if temp_storage.len() != 4 { return None; }
+                    Some(ConstantPoolItem::Float(parse_f32(&temp_storage[..])))
+                },
+                05 => {
+                    temp_storage = iter.by_ref().take(8).collect();
+                    if temp_storage.len() != 8 { return None; }
+                    Some(ConstantPoolItem::Long(parse_i64(&temp_storage[..])))
+                },
+                06 => {
+                    temp_storage = iter.by_ref().take(8).collect();
+                    if temp_storage.len() != 8 { return None; }
+                    Some(ConstantPoolItem::Double(parse_f64(&temp_storage[..])))
+                },
                 07 => {
                     temp_storage = iter.by_ref().take(2).collect();
                     if temp_storage.len() != 2 { return None; }
-                    Some(ConstantPoolItem::Class(parse_u16(&temp_storage[0..2])
+                    Some(ConstantPoolItem::Class(parse_u16(&temp_storage[..])
                     as usize))
                 },
-                08 => Some(ConstantPoolItem::String),
-                09 => Some(ConstantPoolItem::Fieldref),
-                10 => Some(ConstantPoolItem::Methodref),
-                11 => Some(ConstantPoolItem::InterfaceMethodref),
-                12 => Some(ConstantPoolItem::NameAndType),
-                15 => Some(ConstantPoolItem::MethodHandle),
-                16 => Some(ConstantPoolItem::MethodType),
-                18 => Some(ConstantPoolItem::InvokeDynamic),
+                08 => {
+                    temp_storage = iter.by_ref().take(2).collect();
+                    if temp_storage.len() != 2 { return None; }
+                    Some(ConstantPoolItem::String(parse_u16(&temp_storage[..])
+                    as usize))
+                },
+                09 => {
+                    temp_storage = iter.by_ref().take(4).collect();
+                    if temp_storage.len() != 4 { return None; }
+                    Some(ConstantPoolItem::Fieldref(
+                        parse_u16(&temp_storage[0..2]) as usize,
+                        parse_u16(&temp_storage[2..]) as usize))
+                },
+                10 => {
+                    temp_storage = iter.by_ref().take(4).collect();
+                    if temp_storage.len() != 4 { return None; }
+                    Some(ConstantPoolItem::Methodref(
+                        parse_u16(&temp_storage[0..2]) as usize,
+                        parse_u16(&temp_storage[2..]) as usize))
+                },
+                11 => {
+                    temp_storage = iter.by_ref().take(4).collect();
+                    if temp_storage.len() != 4 { return None; }
+                    Some(ConstantPoolItem::InterfaceMethodref(
+                        parse_u16(&temp_storage[0..2]) as usize,
+                        parse_u16(&temp_storage[2..]) as usize))
+                },
+                12 => {
+                    temp_storage = iter.by_ref().take(4).collect();
+                    if temp_storage.len() != 4 { return None; }
+                    Some(ConstantPoolItem::NameAndType(
+                        parse_u16(&temp_storage[0..2]) as usize,
+                        parse_u16(&temp_storage[2..]) as usize))
+                },
+                15 => {
+                    temp_storage = iter.by_ref().take(3).collect();
+                    if temp_storage.len() != 3 { return None; }
+                    Some(ConstantPoolItem::MethodHandle( temp_storage[0],
+                        parse_u16(&temp_storage[1..]) as usize))
+                },
+                16 => {
+                    temp_storage = iter.by_ref().take(2).collect();
+                    if temp_storage.len() != 2 { return None; }
+                    Some(ConstantPoolItem::MethodType(
+                        parse_u16(&temp_storage[..]) as usize))
+                },
+                18 => {
+                    temp_storage = iter.by_ref().take(4).collect();
+                    if temp_storage.len() != 4 { return None; }
+                    Some(ConstantPoolItem::InvokeDynamic(
+                        parse_u16(&temp_storage[0..2]) as usize,
+                        parse_u16(&temp_storage[2..]) as usize))
+                },
                 _ => None,                
             }
         }
