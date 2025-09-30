@@ -2,5 +2,18 @@
 name = "nonsense_vm"
 version = "0.1.0"
 edition = "2024"
+authors = ["Robert R. Russell <robert@rrbrussell.com>"]
+rust-version = "1.85"
+repository = "https://github.com/rrbrussell/nonsense_vm"
+license = "GPLv2"
+
+[lib]
+name = "nonesense"
+path = "src/lib.rs"
+crate-type = ["lib"]
+
+[[bin]]
+name = "nonsense_vm"
+path = "src/main.rs"
 
 [dependencies]
