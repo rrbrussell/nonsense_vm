@@ -2,6 +2,8 @@
 
 #![allow(unused)]
 
+mod constantpool;
+
 use std::collections::HashSet;
 
 fn parse_f32(input: &[u8]) -> f32 {
@@ -10,7 +12,8 @@ fn parse_f32(input: &[u8]) -> f32 {
 
 fn parse_f64(input: &[u8]) -> f64 {
     f64::from_be_bytes([
-        input[0], input[1], input[2], input[3], input[4], input[5], input[6], input[7],
+        input[0], input[1], input[2], input[3], input[4], input[5], input[6],
+input[7],
     ])
 }
 
@@ -20,7 +23,8 @@ fn parse_i32(input: &[u8]) -> i32 {
 
 fn parse_i64(input: &[u8]) -> i64 {
     i64::from_be_bytes([
-        input[0], input[1], input[2], input[3], input[4], input[5], input[6], input[7],
+        input[0], input[1], input[2], input[3], input[4], input[5], input[6],
+input[7],
     ])
 }
 
@@ -86,7 +90,8 @@ fn parse_javaized_utf8(input: &Vec<u8>) -> Option<String> {
             if (datum_y & datum_z & 0x80) != 0x80 {
                 return None;
             }
-            let temp: u32 = ((datum & 0x0F) << 12) + ((datum_y & 0x3F) << 6) + (datum_z & 0x3F);
+            let temp: u32 = ((datum & 0x0F) << 12) + ((datum_y & 0x3F) << 6) +
+(datum_z & 0x3F);
             match char::from_u32(temp) {
                 None => {
                     return None;
@@ -99,8 +104,7 @@ fn parse_javaized_utf8(input: &Vec<u8>) -> Option<String> {
             }
         }
         // This particular sentinal value marks code points from U+0080 to
-        // U+00FF and uniquely to Java U+0000. These code points are spread over
-        // 2 bytes.
+        // U+00FF and uniquely to Java U+0000. These code points are spread
         if datum & 0xC0 == 0xC0 {
             // Do we have enough input data?
             if (index + 1) >= input.len() {
@@ -160,16 +164,20 @@ pub fn parse_access_flags(input: u16) -> HashSet<CFAccessFlags> {
     if input & CFAccessFlags::Super as u16 == CFAccessFlags::Final as u16 {
         set_flags.insert(CFAccessFlags::Super);
     }
-    if input & CFAccessFlags::Interface as u16 == CFAccessFlags::Interface as u16 {
+    if input & CFAccessFlags::Interface as u16 == CFAccessFlags::Interface as
+u16 {
         set_flags.insert(CFAccessFlags::Interface);
     }
-    if input & CFAccessFlags::Abstract as u16 == CFAccessFlags::Abstract as u16 {
+    if input & CFAccessFlags::Abstract as u16 == CFAccessFlags::Abstract as u16
+{
         set_flags.insert(CFAccessFlags::Abstract);
     }
-    if input & CFAccessFlags::Synthetic as u16 == CFAccessFlags::Synthetic as u16 {
+    if input & CFAccessFlags::Synthetic as u16 == CFAccessFlags::Synthetic as
+u16 {
         set_flags.insert(CFAccessFlags::Synthetic);
     }
-    if input & CFAccessFlags::Annotation as u16 == CFAccessFlags::Annotation as u16 {
+    if input & CFAccessFlags::Annotation as u16 == CFAccessFlags::Annotation as
+u16 {
         set_flags.insert(CFAccessFlags::Annotation);
     }
     if input & CFAccessFlags::Enum as u16 == CFAccessFlags::Enum as u16 {
@@ -199,14 +207,21 @@ pub enum ConstantPoolItem {
 impl ConstantPoolItem {
     pub fn get_string(&self) -> &String {
         match self {
-            ConstantPoolItem::Utf8(data) => { return data; }
-            _ => { panic!("The ConstantPoolItem you called this on doesn't have\
-getString support."); }
+            ConstantPoolItem::Utf8(data) => {
+                return data;
+            }
+            _ => {
+                panic!(
+                    "The ConstantPoolItem you called this on doesn't have\
+getString support."
+                );
+            }
         }
     }
 }
 
-pub fn parse_constant_pool_tag(iter: &mut impl Iterator<Item = u8>) -> Option<ConstantPoolItem> {
+pub fn parse_constant_pool_tag(iter: &mut impl Iterator<Item = u8>) ->
+Option<ConstantPoolItem> {
     let mut temp_storage: Vec<u8>;
     match iter.next() {
         Some(tag) => match tag {
@@ -347,70 +362,77 @@ pub fn parse_constant_pool_tag(iter: &mut impl Iterator<Item = u8>) -> Option<Co
 }
 
 pub fn parse_constant_pool(constant_pool: &Vec<ConstantPoolItem>) -> bool {
-        for t in constant_pool.iter() {
-            match t {
-                ConstantPoolItem::Utf8(data) => {
-                    println!("I found the raw Utf data: {data}");
+    for (ind, t) in constant_pool.iter().enumerate() {
+        match t {
+            ConstantPoolItem::Utf8(data) => {
+                println!("{ind}: I found the raw Utf data: {data}");
+            }
+            ConstantPoolItem::Integer(item) => {
+                println!("{ind}: I found the integer {item}.");
+            }
+            ConstantPoolItem::Float(item) => {
+                println!("{ind}: I found the float {item}.");
+            }
+            ConstantPoolItem::Long(item) => {
+                println!("{ind}: I found the long {item}.");
+            }
+            ConstantPoolItem::Double(item) => {
+                println!("{ind}: I found a double {item}.");
+            }
+            ConstantPoolItem::Class(name_index) => match
+&constant_pool[*name_index - 1] {
+                ConstantPoolItem::Utf8(name) => {
+                    println!("{ind}: I found a class named: {name}");
                 }
-                ConstantPoolItem::Integer(item) => {
-                    println!("I found the integer {item}.");
+                _ => {
+                    return false;
                 }
-                ConstantPoolItem::Float(item) => {
-                    println!("I found the float {item}.");
-                }
-                ConstantPoolItem::Long(item) => {
-                    println!("I found the long {item}.");
-                }
-                ConstantPoolItem::Double(item) => {
-                    println!("I found a double {item}.");
-                }
-                ConstantPoolItem::Class(name_index) => {
-                    match &constant_pool[*name_index - 1] {
-                        ConstantPoolItem::Utf8(name) => {
-                            println!("I found a class named: {name}");
-                        },
-                        _ => { return false; }
-                    }
-                }
+            },
             ConstantPoolItem::String(string_index) => {
-                println!("I found a string. Its contents are at index {string_index}.");
+                println!(
+                    "{ind}: I found a string. Its contents are at index
+{string_index}."
+                );
             }
             ConstantPoolItem::Fieldref(class, name_and_type) => {
                 println!(
-                    "I found a field belonging to {class} that is named and \
+                    "{ind}: I found a field belonging to {class} that is named
+and \
 typed at {name_and_type}."
                 );
             }
             ConstantPoolItem::Methodref(class, name_and_type) => {
                 println!(
-                    "I found a method belonging to {class} that is named and \
+                    "{ind}: I found a method belonging to {class} that is named
+and \
 typed at {name_and_type}."
                 );
             }
             ConstantPoolItem::InterfaceMethodref(class, name_and_type) => {
                 println!(
-                    "I found an interface method belonging to {class} \
+                    "{ind}: I found an interface method belonging to {class} \
 that is name and typed at {name_and_type}."
                 );
             }
             ConstantPoolItem::NameAndType(name, descriptor) => {
                 println!(
-                    "I found a member named at {name} and typed at \
+                    "{ind}: I found a member named at {name} and typed at \
 {descriptor}."
                 );
             }
             ConstantPoolItem::MethodHandle(kind, reference) => {
                 println!(
-                    "I found a method handle of {kind} referencing \
+                    "{ind}: I found a method handle of {kind} referencing \
 the item at {reference}."
                 );
             }
             ConstantPoolItem::MethodType(description) => {
-                println!("I found a method descriped at {description}.");
+                println!("{ind}: I found a method descriped at {description}.");
             }
             ConstantPoolItem::InvokeDynamic(bootstrap, name_and_type) => {
                 println!(
-                    "I found a dynamic invocation boostrap method named and \
+                    "{ind}: I found a dynamic invocation boostrap method named
+and \
 typed at {name_and_type},"
                 );
                 println!(
@@ -443,12 +465,13 @@ enum FieldDescriptor {
     Array(u8, Box<FieldDescriptor>),
 }
 
-fn parse_field_descriptor(descriptor: &str) ->
-Option<FieldDescriptor> {
-    if descriptor.starts_with(&['B','C','D','F','I','J','S','Z']) {
+fn parse_field_descriptor(descriptor: &str) -> Option<FieldDescriptor> {
+    if descriptor.starts_with(&['B', 'C', 'D', 'F', 'I', 'J', 'S', 'Z']) {
         // This is the simple version. This field descriptor should be a single
         // character in length.
-        if descriptor.len() != 1 { return None; }
+        if descriptor.len() != 1 {
+            return None;
+        }
         // Safety: We have already checked the length of the input string.
         match descriptor.chars().next().unwrap() {
             'B' => Some(FieldDescriptor::Byte),
@@ -458,13 +481,15 @@ Option<FieldDescriptor> {
             'I' => Some(FieldDescriptor::Integer),
             'J' => Some(FieldDescriptor::Long),
             'Z' => Some(FieldDescriptor::Boolean),
-            _ => None
+            _ => None,
         }
     } else {
         if descriptor.starts_with(&['L', '[']) {
-            // This is the more complex version. This Field descriptor should be
-            // more than a single character in length.
-            if descriptor.len() < 2 { return None; }
+            // This is the more complex version. This Field descriptor should
+            // be more than a single character in length.
+            if descriptor.len() < 2 {
+                return None;
+            }
             let mut chars = descriptor.chars();
             let mut temp: Vec<char> = Vec::with_capacity(descriptor.len());
             let mut identifiers: Vec<String> = Vec::with_capacity(8);
@@ -473,7 +498,9 @@ Option<FieldDescriptor> {
                 'L' => {
                     while let Some(c) = chars.next() {
                         match c {
-                            '.' | '[' => { return None; },
+                            '.' | '[' => {
+                                return None;
+                            }
                             '/' => {
                                 identifiers.push(temp.iter().collect());
                                 temp.clear();
@@ -487,7 +514,7 @@ Option<FieldDescriptor> {
                         }
                     }
                     Some(FieldDescriptor::Reference(identifiers))
-                },
+                }
                 '[' => {
                     let mut depth: usize = 1;
                     let mut result: Option<FieldDescriptor> = None;
@@ -497,13 +524,17 @@ Option<FieldDescriptor> {
                             'L' => {
                                 while let Some(c) = chars.next() {
                                     match c {
-                                        '.' | '[' => { return None; },
+                                        '.' | '[' => {
+                                            return None;
+                                        }
                                         '/' => {
-                                            identifiers.push(temp.iter().collect());
+
+identifiers.push(temp.iter().collect());
                                             temp.clear();
                                         }
                                         ';' => {
-                                            identifiers.push(temp.iter().collect());
+
+identifiers.push(temp.iter().collect());
                                             temp.clear();
                                             break;
                                         }
@@ -511,52 +542,56 @@ Option<FieldDescriptor> {
                                     }
                                 }
                                 result =
-                                Some(FieldDescriptor::Reference(identifiers));
+Some(FieldDescriptor::Reference(identifiers));
                                 break;
-                            },
+                            }
                             'B' => {
                                 result = Some(FieldDescriptor::Byte);
                                 break;
-                            },
+                            }
                             'C' => {
                                 result = Some(FieldDescriptor::Char);
                                 break;
-                            },
+                            }
                             'D' => {
                                 result = Some(FieldDescriptor::Double);
                                 break;
-                            },
+                            }
                             'F' => {
                                 result = Some(FieldDescriptor::Float);
                                 break;
-                            },
+                            }
                             'I' => {
                                 result = Some(FieldDescriptor::Integer);
                                 break;
-                            },
+                            }
                             'J' => {
                                 result = Some(FieldDescriptor::Long);
                                 break;
-                            },
+                            }
                             'Z' => {
                                 result = Some(FieldDescriptor::Boolean);
                                 break;
-                            },
-                            _ => { return None; }
+                            }
+                            _ => {
+                                return None;
+                            }
                         }
                     }
                     if depth <= 255 && result.is_some() {
-                        Some(FieldDescriptor::Array(depth as u8,
-                            Box::new(result.unwrap())))
+                        Some(FieldDescriptor::Array(
+                            depth as u8,
+                            Box::new(result.unwrap()),
+                        ))
                     } else {
                         None
                     }
-                },
-                _ => None
+                }
+                _ => None,
             }
         } else {
-        // The descriptor is not a valid field descriptor.
-        None
+            // The descriptor is not a valid field descriptor.
+            None
         }
     }
 }
